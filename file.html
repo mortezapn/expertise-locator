@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Search from Excel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Vazir, sans-serif;
+        }
+        .transition-height {
+            transition: height 0.3s ease-in-out;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4">
+        <div class="flex justify-end mb-4">
+            <button id="downloadExcelButton" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
+                دانلود فایل اکسل به‌روز شده
+            </button>
+        </div>
+        <h1 class="text-3xl font-bold text-center mb-8">جستجوی اساتید از اکسل</h1>
+        <div class="flex justify-center mb-8">
+            <input type="text" id="searchField" placeholder="عبارت مورد نظر را وارد کنید (مثلاً accs improved)" class="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            <button id="searchButton" class="ml-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">جستجو</button>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold text-blue-600 mb-4">اضافه کردن استاد و تخصص جدید</h2>
+            <div class="space-y-4">
+                <select id="masterDropdown" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">لطفا نام استاد خود را انتخاب کنید</option>
+                </select>
+                <input type="text" id="newMasterName" placeholder="نام استاد جدید (در صورت عدم وجود در لیست)" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input type="text" id="expertiseInput" placeholder="تخصص جدید" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <button id="addMasterButton" class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">اضافه کردن</button>
+            </div>
+        </div>
+        <div id="results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <p class="text-gray-600">نتایج جستجو در اینجا نمایش داده می‌شود.</p>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        let masters = [];
+        let workbook;
+
+        async function loadExcelFile() {
+            try {
+                const response = await fetch('extracted_keywords.xlsx');
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                const masterNames = jsonData[0];
+                masters = masterNames.map((name, index) => {
+                    return {
+                        name: name,
+                        fields: jsonData.slice(1).map(row => row[index]).filter(field => field)
+                    };
+                });
+                console.log("Data loaded:", masters);
+                updateMasterDropdown();
+                alert("فایل اکسل با موفقیت بارگذاری شد!");
+            } catch (error) {
+                console.error("Error loading Excel file:", error);
+                alert("خطا در بارگذاری فایل اکسل. لطفاً کنسول را بررسی کنید.");
+            }
+        }
+
+        function updateMasterDropdown() {
+            const dropdown = document.getElementById('masterDropdown');
+            dropdown.innerHTML = '<option value="">لطفا نام استاد خود را انتخاب کنید</option>';
+            masters.forEach(master => {
+                const option = document.createElement('option');
+                option.value = master.name;
+                option.textContent = master.name;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function searchMasters() {
+            const input = document.getElementById('searchField').value.toLowerCase();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            if (input === '') {
+                resultsDiv.innerHTML = '<p class="text-gray-600">لطفاً عبارت مورد نظر را وارد کنید.</p>';
+                return;
+            }
+            const filteredMasters = masters.filter(master => {
+                return master.fields.some(field => field.toLowerCase().includes(input));
+            });
+            if (filteredMasters.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-gray-600">هیچ استادی برای این عبارت یافت نشد.</p>';
+            } else {
+                filteredMasters.forEach(master => {
+                    const masterCard = document.createElement('div');
+                    masterCard.className = 'bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow';
+                    const masterName = document.createElement('h2');
+                    masterName.className = 'text-xl font-semibold text-blue-600 mb-4';
+                    masterName.textContent = master.name;
+                    masterCard.appendChild(masterName);
+                    const fieldsList = document.createElement('div');
+                    fieldsList.className = 'space-y-2';
+                    const visibleFields = master.fields.filter(field => field.toLowerCase().includes(input)).slice(0, 2);
+                    const hiddenFields = master.fields.filter(field => field.toLowerCase().includes(input)).slice(2);
+                    visibleFields.forEach(field => {
+                        const fieldItem = document.createElement('p');
+                        fieldItem.className = 'text-gray-700 bg-gray-50 p-2 rounded-md';
+                        fieldItem.textContent = field;
+                        fieldsList.appendChild(fieldItem);
+                    });
+                    if (hiddenFields.length > 0) {
+                        const toggleButton = document.createElement('button');
+                        toggleButton.className = 'flex items-center text-blue-500 mt-2';
+                        toggleButton.innerHTML = `<span>نمایش بیشتر</span><i class="fas fa-chevron-down ml-2"></i>`;
+                        const hiddenFieldsContainer = document.createElement('div');
+                        hiddenFieldsContainer.className = 'transition-height';
+                        hiddenFieldsContainer.style.height = '0';
+                        hiddenFields.forEach(field => {
+                            const fieldItem = document.createElement('p');
+                            fieldItem.className = 'text-gray-700 bg-gray-50 p-2 rounded-md';
+                            fieldItem.textContent = field;
+                            hiddenFieldsContainer.appendChild(fieldItem);
+                        });
+                        toggleButton.addEventListener('click', () => {
+                            if (hiddenFieldsContainer.style.height === '0px' || !hiddenFieldsContainer.style.height) {
+                                hiddenFieldsContainer.style.height = `${hiddenFieldsContainer.scrollHeight}px`;
+                                toggleButton.innerHTML = `<span>نمایش کمتر</span><i class="fas fa-chevron-up ml-2"></i>`;
+                            } else {
+                                hiddenFieldsContainer.style.height = '0';
+                                toggleButton.innerHTML = `<span>نمایش بیشتر</span><i class="fas fa-chevron-down ml-2"></i>`;
+                            }
+                        });
+                        fieldsList.appendChild(toggleButton);
+                        fieldsList.appendChild(hiddenFieldsContainer);
+                    }
+                    masterCard.appendChild(fieldsList);
+                    resultsDiv.appendChild(masterCard);
+                });
+            }
+        }
+
+        function addMasterOrExpertise() {
+            const dropdown = document.getElementById('masterDropdown');
+            const newMasterNameInput = document.getElementById('newMasterName');
+            const expertiseInput = document.getElementById('expertiseInput');
+            const selectedMaster = dropdown.value;
+            const newMasterName = newMasterNameInput.value.trim();
+            const expertise = expertiseInput.value.trim();
+            if (!expertise) {
+                alert("لطفاً تخصص را وارد کنید.");
+                return;
+            }
+            let masterName = selectedMaster || newMasterName;
+            if (!masterName) {
+                alert("لطفاً نام استاد را انتخاب کنید یا وارد کنید.");
+                return;
+            }
+            let master = masters.find(m => m.name === masterName);
+            if (!master) {
+                master = { name: masterName, fields: [] };
+                masters.push(master);
+                updateMasterDropdown();
+            }
+            master.fields.push(expertise);
+            dropdown.value = '';
+            newMasterNameInput.value = '';
+            expertiseInput.value = '';
+            alert("تخصص با موفقیت اضافه شد!");
+            searchMasters();
+        }
+
+        function saveExcelFile() {
+            try {
+                const sheetData = [];
+                const headers = masters.map(master => master.name);
+                sheetData.push(headers);
+                const maxFields = Math.max(...masters.map(master => master.fields.length));
+                for (let i = 0; i < maxFields; i++) {
+                    const row = masters.map(master => master.fields[i] || '');
+                    sheetData.push(row);
+                }
+                const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+                workbook.Sheets[workbook.SheetNames[0]] = sheet;
+                const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'updated-masters.xlsx';
+                a.click();
+                URL.revokeObjectURL(url);
+                alert("فایل اکسل با موفقیت ذخیره شد!");
+            } catch (error) {
+                console.error("Error saving Excel file:", error);
+                alert("خطا در ذخیره فایل اکسل. لطفاً کنسول را بررسی کنید.");
+            }
+        }
+
+        document.getElementById('addMasterButton').addEventListener('click', addMasterOrExpertise);
+        document.getElementById('downloadExcelButton').addEventListener('click', saveExcelFile);
+        document.getElementById('searchButton').addEventListener('click', searchMasters);
+        window.onload = loadExcelFile;
+    </script>
+</body>
+</html>
